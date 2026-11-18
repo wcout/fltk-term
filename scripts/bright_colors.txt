@@ -1,0 +1,43 @@
+    [4mIntense Colors:[24m
+[90m██████ Intelligent Grey (90)[0m
+[91m██████ Intense Red (91)[0m
+[92m██████ Intense Green (92)[0m
+[93m██████ Intense Yellow (93)[0m
+[94m██████ Intense Blue (94)[0m
+[95m██████ Intense Magenta (95)[0m
+[96m██████ Intense Cyan (96)[0m
+[97m██████ Intense White (97)[0m
+    [4mBold Intense Colors:[24m
+[1;90m██████ Intelligent Grey (90)[0m
+[1;91m██████ Intense Red (91)[0m
+[1;92m██████ Intense Green (92)[0m
+[1;93m██████ Intense Yellow (93)[0m
+[1;94m██████ Intense Blue (94)[0m
+[1;95m██████ Intense Magenta (95)[0m
+[1;96m██████ Intense Cyan (96)[0m
+[1;97m██████ Intense White (97)[0m
+[100;30m Background 100 + Text Black [0m
+[101;30m Background 101 + Text Black [0m
+[102;30m Background 102 + Text Black [0m
+[103;30m Background 103 + Text Black [0m
+[104;30m Background 104 + Text Black [0m
+[105;30m Background 105 + Text Black [0m
+[106;30m Background 106 + Text Black [0m
+[107;30m Background 107 + Text Black [0m
+    [4mStandard Colors:[24m
+[30m██████ Black / Darkgray (30)[0m
+[31m██████ Standard Red (31)[0m
+[32m██████ Standard Green (32)[0m
+[33m██████ Standard Yellow/BrownYellow (33)[0m
+[34m██████ Standard Blue (34)[0m
+[35m██████ Standard Magenta (35)[0m
+[36m██████ Standard Cyan (36)[0m
+[37m██████ Standard White / Lightgray (37)[0m
+[40;37m Background 40 + Text White [0m
+[41;37m Background 41 + Text White [0m
+[42;30m Background 42 + Text Black [0m
+[43;30m Background 43 + Text Black [0m
+[44;37m Background 44 + Text White [0m
+[45;37m Background 45 + Text White [0m
+[46;30m Background 46 + Text Black [0m
+[47;30m Background 47 + Text Black [0m

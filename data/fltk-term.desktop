@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=fltk-term
+Comment=FLTK Terminal
+Exec=fltk-term %F
+Icon=fltk-term.svg
+StartupWMClass=fltk-term
+Categories=System

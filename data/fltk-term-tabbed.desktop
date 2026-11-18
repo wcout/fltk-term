@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=fltk-term-tabbed
+Comment=FLTK Terminal in Tabs
+Exec=fltk-term-tabbed %F
+Icon=fltk-term-tabbed.svg
+StartupWMClass=fltk-term-tabbed
+Categories=System
