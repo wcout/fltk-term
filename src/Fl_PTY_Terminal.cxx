@@ -533,11 +533,16 @@ int Fl_PTY_Terminal::handle(int event) {
       }
       // toggle background color
       static std::vector<Fl_Color> bg_colors = {
-        0xffffff00, 0x00000000, 0x00007f00, 0x00910000, // white/black/dark blue/dark green
-        0x10101000, 0x22222200, 0xdddddd00, 0xf0f0f000  // increasing light gray levels
+        0xffffff00, 0x00000000,                         // pure white/black
+        0x1f000000, 0x00001f00, 0x001f0000, 0x2f1f0000, // dark red/dark blue/dark green/dark orange
+        0x08080800, 0x14141400, 0x1f1f1f00, 0x24242400, // decreasing dark gray levels
+        0xcccccc00, 0xdddddd00, 0xe0e0e000, 0xf0f0f000  // increasing light gray levels
       };
       static size_t current_bg_index = 0;
-      current_bg_index++;
+      state & FL_SHIFT ? current_bg_index-- : current_bg_index++;
+      if ((int)current_bg_index < 0) {
+        current_bg_index = bg_colors.size() - 1;
+      }
       if (current_bg_index >= bg_colors.size()) {
         current_bg_index = 0;
       }
@@ -600,9 +605,7 @@ void Fl_PTY_Terminal::snap_to_grid_cb(void *d) {
 }
 
 void Fl_PTY_Terminal::toggle_default_colors() {
-  // NOTE: toggling colors during run, will not change current
-  //       screen, only new text (that would require FL_Terminal to
-  //       store colors 0-15 not as rgb, but as index.
+  // NOTE: toggling colors will update the display immediately
   static bool def = true;
   static Fl_Color def_colrs[32] = { (Fl_Color)-1 };
   static Fl_Color gtk_colrs[32] = {
