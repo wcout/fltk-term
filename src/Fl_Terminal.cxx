@@ -4224,7 +4224,7 @@ void Fl_Terminal::draw_row(int grow, int Y) const {
 //  int  strikeout_y = baseline - (current_style_->fontheight() / 4);
 //  int  underline_y = baseline + (current_style_->fontheight() / 5);
   int  strikeout_y = baseline - (current_style_->fontheight() / 3);
-  int  underline_y = baseline;
+  int  underline_y = baseline + 1;
   uchar lastattr = -1;
   bool  is_cursor;
   bool  is_selection;
