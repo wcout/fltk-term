@@ -483,6 +483,11 @@ int Fl_Terminal::EscapeSeq::parse(char c) {
     } else {                                // all other esc_mode() chars are fail/unknown
     goto pfail;
   }
+  if (c == ':') {                           // subparameter introducer
+    append_buff(c);
+    if (append_val() < 0) goto pfail;
+    return success;
+  }
   if (( c >= '@' && c<= 'Z') ||             // ESC#X or ESC[...X, where X is [A-Z,a-z]?
       ( c >= 'a' && c<= 'z')) {
     if (append_val() < 0 ) goto pfail;      // append any trailing vals just before letter
@@ -2974,7 +2979,11 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         case 1: current_style_->sgr_bold(1);     break; // ESC[1m - bold
         case 2: current_style_->sgr_dim(1);      break; // ESC[2m - dim
         case 3: current_style_->sgr_italic(1);   break; // ESC[3m - italic
-        case 4: current_style_->sgr_underline(1);break; // ESC[4m - underline
+        case 4:                                         // ESC[4#m - underline
+          // with subparameter ESC[4:Pm  (P='0'..'5'), just use it for turning on/off
+          current_style_->sgr_underline(tot > 1 ? esc.val(1) != 0 : 1);
+          i++;                                          // skip a subparameter
+          break;
         case 5: current_style_->sgr_blink(1);    break; // ESC[5m - blink
         case 6: goto not_implemented;                   // ESC[6m - (unused)
         case 7: current_style_->sgr_inverse(1);  break; // ESC[7m - inverse
