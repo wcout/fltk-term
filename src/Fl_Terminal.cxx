@@ -552,13 +552,6 @@ Fl_Color Fl_Terminal::CharStyle::bgcolor(void) const {
   return bgcolor_;
 }
 
-// Return only the color bit flags
-//   Only the color bits of 'inflags' are modified with our color bits.
-//
-uchar Fl_Terminal::CharStyle::colorbits_only(uchar inflags) const {
-  return (inflags & ~COLORMASK) | (charflags_ & COLORMASK);   // add color bits only
-}
-
 void Fl_Terminal::CharStyle::fgcolor_xterm(uchar val, bool bright/* = false*/) {
   fgcolor_ = bright ? val + 8 : val;
   set_charflag(FG_XTERM);
@@ -620,7 +613,7 @@ void Fl_Terminal::Utf8Char::text_utf8(const char *text,
   text_utf8_(text, len);                       // updates text_, len_
   //issue 837 // fl_font(style.fontface(), style.fontsize()); // need font to calc UTF-8 width
   attrib_    = style.attrib();
-  charflags_ = style.colorbits_only(charflags_);
+  charflags_ = style.charflags();
   fgcolor_   = style.fgcolor();
   bgcolor_   = style.bgcolor();
 }
@@ -1992,6 +1985,7 @@ void Fl_Terminal::clear_screen(bool scroll_to_hist) {
     for (int dcol=0; dcol<disp_cols(); dcol++)
       clear_char_at_disp(drow, dcol);
   clear_mouse_selection();
+  current_style_->underline_color.clear();
 }
 
 /**
@@ -2890,6 +2884,29 @@ bool Fl_Terminal::is_ctrl(char c) {
   return ((c >= 0x00) && (c < 0x20)) ? true : false;
 }
 
+// get rgb from 6x6x6 color cube index 0..255
+static Fl_Color color_cube(uchar val) {
+  uchar r, g, b;
+  if (val >= 16 && val <= 231) {             // 6x6x6 color cube index
+    val -= 16;
+    r = val / 36;                            // index red 0..5
+    g = (val % 36) / 6;                      // index green 0..5
+    b = val % 6;                             // index blue 0..5
+    static const int intensity[] = { 0, 95, 135, 175, 215, 255 };
+    r = intensity[r];
+    g = intensity[g];
+    b = intensity[b];
+  }
+  else if (val >= 232 && val <= 255) {       // grayscale intensity
+    r = g = b = 8 + (val - 232) * 10;
+  }
+  else {
+    Fl::get_color(val, r, g, b);             // from FLTK standard palette
+  }
+  //DEBUG fprintf(stderr, "color cube color %d: %d/%d/%d\n", (int)val, (int)r, (int)g, (int)b);
+  return rgb(r, g, b);
+}
+
 // Handle ESC[m sequences.
 //    This is different from the others in that the list of vals
 //    separated by ;'s can be long, to allow combining multiple mode
@@ -2935,43 +2952,18 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         continue;                                       // continue loop to parse more vals
       case 5:
         if (val < 16) {                                 // Xterm standard colors
-           unsigned char cr, cg, cb;
-           if (rgbcode == 38) {                         // use builtin fg table
-              current_style_->fgcolor_xterm(val%8, val >= 8);
-              rgbcode = rgbmode = 0;
-              continue;
-           }
-           else if (rgbcode == 48) {                    // use builtin bg table
-              current_style_->bgcolor_xterm(val%8, val >= 8);
-              rgbcode = rgbmode = 0;
-              continue;
-           }
-           else {
-             Fl::get_color(val, cr, cg, cb);            // from FLTK standard palette
-           }
-           r = cr;
-           g = cg;
-           b = cb;
+          if (rgbcode == 38) current_style_->fgcolor_xterm(val%8, val >= 8); // use builtin fg table
+          if (rgbcode == 48) current_style_->bgcolor_xterm(val%8, val >= 8); // use builtin bg table
+          rgbcode = rgbmode = 0;
+          continue;
         }
-        else if (val >= 16 && val <= 231) {             // 6x6x6 color cube index
-          val -= 16;
-          int rl = val / 36;                            // index red 0..5
-          int gl = (val % 36) / 6;                      // index green 0..5
-          int gb = val % 6;                             // index blue 0..5
-          static const int intensity[] = {0, 95, 135, 175, 215, 255};
-          r = intensity[rl];                            // extract color values
-          g = intensity[gl];                            // from table
-          b = intensity[gb];
+        else if (val <= 255) {                          // 6x6x6 color cube index
+          Fl_Color rgb = color_cube(val);
+          if (rgbcode == 38) current_style_->fgcolor(rgb);
+          if (rgbcode == 48) current_style_->bgcolor(rgb);
         }
-        else if (val >= 232 && val <= 255) {            // grayscale intensity
-          int v = 8 + (val - 232) * 10;
-          r = g = b = v;
-        }
-        //DEBUG fprintf(stderr, "color cube %d color: %d/%d/%d\n", rgbcode, r, g, b);
-        if (rgbcode == 38) current_style_->fgcolor(r, g, b);
-        if (rgbcode == 48) current_style_->bgcolor(r, g, b);
-        rgbcode = rgbmode = 0;
-        continue;
+       rgbcode = rgbmode = 0;
+       continue;
     }
     if (val < 10) {                                     // Set attribute? (bold,underline..)
       switch (val) {
@@ -2982,7 +2974,7 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         case 4:                                         // ESC[4#m - underline
           // with subparameter ESC[4:Pm  (P='0'..'5'), just use it for turning on/off
           current_style_->sgr_underline(tot > 1 ? esc.val(1) != 0 : 1);
-          i++;                                          // skip a subparameter
+          i += tot;                                     // skip subparameter
           break;
         case 5: current_style_->sgr_blink(1);    break; // ESC[5m - blink
         case 6: goto not_implemented;                   // ESC[6m - (unused)
@@ -3020,6 +3012,37 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
     } else if (val == 49) {                              // ESC[49m -- "normal" bg color:
       Fl_Color bg = current_style_->defaultbgcolor();    // ..get default bg color
       current_style_->bgcolor_xterm(bg);                 // ..set current bg color
+    } else if (val == 58) {                              // ESC[58:mode:#m -- set underline color
+      Fl_Color color = NoColor;
+      if (tot == 3 && esc.val(1) == 5) {                 //   mode 5: index color cube specified
+        if (esc.val(2) < 16) color = esc.val(2);
+        else if (esc.val(2) <= 255) color = color_cube(esc.val(2));
+      }
+      else if (tot == 5 && esc.val(1) == 2) {            //   mode 2: r/g/b specified
+        color = rgb(esc.val(2), esc.val(3), esc.val(4));
+      }
+      if (color != NoColor) {                            // e.g. when index > 255
+        current_style_->sgr_uline_colr(1);               // set flag for "using underline color"
+        // put underline color in a small table, in order to store it
+        // only as index (3 bits) in style's charflags.
+        int index = -1;
+        std::vector<Fl_Color> &uline_color = current_style_->underline_color;
+        for (size_t i = 0; i < uline_color.size(); i++) {
+          if (uline_color[i] == color) { index = i; break; } // color exists already
+        }
+        if (index == -1) {                               // new color
+           while (uline_color.size() > 7)                // keep only 8 colors
+             uline_color.pop_back();                     // remove last to keep existing indices
+           uline_color.push_back(color);                 // store new color
+           index = uline_color.size() - 1;               // index is the last entry
+        }
+        //fprintf(stderr, "underline_color_[%d]: %08X\n", (int)index, underline_color_[index]);
+        current_style_->clr_charflag(7 << 3);            // store index in style's charflags
+        current_style_->set_charflag(index << 3);
+      }
+      i += tot;                                          // skip all subparameters
+    } else if (val == 59) {
+        current_style_->sgr_uline_colr(0);
     } else {                                             // unimplemented SGR codes
       goto not_implemented;
     }
@@ -4309,8 +4332,13 @@ void Fl_Terminal::draw_row(int grow, int Y) const {
     // 3) Draw text for UTF-8 char. No need to draw spaces
     if (!u8c->is_char(' ')) fl_draw(u8c->text_utf8(), u8c->length(), X, baseline);
     // 4) Strike or underline?
-    if (u8c->attrib() & Fl_Terminal::UNDERLINE) fl_line(X, underline_y, X+pwidth, underline_y);
     if (u8c->attrib() & Fl_Terminal::STRIKEOUT) fl_line(X, strikeout_y, X+pwidth, strikeout_y);
+    if (u8c->attrib() & Fl_Terminal::UNDERLINE) {
+      if (u8c->attrib() & Fl_Terminal::ULINE_COLR) {  // use underline color?
+        fl_color(current_style_->underline_color[u8c->uline_colr_index()]);
+      }
+      fl_line(X, underline_y, X+pwidth, underline_y);
+    }
     // Move to next char pixel position
     X += pwidth;
     off++;

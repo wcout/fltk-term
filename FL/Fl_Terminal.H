@@ -355,7 +355,7 @@ public:
     DIM         = 0x02,   ///< dim text; color slightly darker than normal
     ITALIC      = 0x04,   ///< italic font text
     UNDERLINE   = 0x08,   ///< underlined text
-    _RESERVED_1 = 0x10,   ///< <EM>(reserved for internal future use)</EM>
+    ULINE_COLR  = 0x10,   ///< use color for underline (index to table is in charflags)
     INVERSE     = 0x20,   ///< inverse text; fg/bg color are swapped
     _RESERVED_2 = 0x40,   ///< <EM>(reserved for internal future use)</EM>
     STRIKEOUT   = 0x80    ///< strikeout text
@@ -369,9 +369,9 @@ public:
     FG_XTERM   = 0x01,    ///< this char's fg color is an XTERM color; can be affected by Dim+Bold
     BG_XTERM   = 0x02,    ///< this char's bg color is an XTERM color; can be affected by Dim+Bold
     EOL        = 0x04,    ///< TODO: char at EOL, used for line re-wrap during screen resizing
-    RESV_A     = 0x08,
-    RESV_B     = 0x10,
-    RESV_C     = 0x20,
+    RESV_A     = 0x08,    // |
+    RESV_B     = 0x10,    //  >  used for underline color index [0..7]
+    RESV_C     = 0x20,    // |
     RESV_D     = 0x40,
     RESV_E     = 0x80,
     COLORMASK  = (FG_XTERM | BG_XTERM)
@@ -479,7 +479,6 @@ protected:
     int  fontheight(void) const         { return fontheight_; }
     int  fontdescent(void) const        { return fontdescent_; }
     int  charwidth(void) const          { return charwidth_; }
-    uchar colorbits_only(uchar inflags) const;
     void attrib(uchar val)              { attrib_    = val; }
     void charflags(uchar val)           { charflags_ = val; }
     void set_charflag(uchar val)        { charflags_ |= val; }
@@ -515,10 +514,13 @@ protected:
     void sgr_dim(bool val)       { attrib_ = (uchar)onoff(val, Fl_Terminal::DIM);       } // e.g. ESC[2m
     void sgr_italic(bool val)    { attrib_ = (uchar)onoff(val, Fl_Terminal::ITALIC);    } // e.g. ESC[3m
     void sgr_underline(bool val) { attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE); } // e.g. ESC[4m
+    void sgr_uline_colr(bool val){ attrib_ = (uchar)onoff(val, Fl_Terminal::ULINE_COLR);} // e.g. ESC[58:2::R:G:Bm
     void sgr_dbl_under(bool val) { attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE); } // e.g. ESC[21m (TODO!)
     void sgr_blink(bool val)     { (void)val; /* NOT IMPLEMENTED */                     } // e.g. ESC[5m
     void sgr_inverse(bool val)   { attrib_ = (uchar)onoff(val, Fl_Terminal::INVERSE);   } // e.g. ESC[7m
     void sgr_strike(bool val)    { attrib_ = (uchar)onoff(val, Fl_Terminal::STRIKEOUT); } // e.g. ESC[9m
+public:
+    std::vector<Fl_Color>  underline_color; // table used to store at maximum 8 underline colors
   };
 
 protected:
@@ -597,6 +599,7 @@ protected:
     // Return the attribute for this char
     uchar attrib(void) const { return attrib_; }
     uchar charflags(void) const { return charflags_; }
+    int uline_colr_index(void) const { return ((charflags_>>3) & 7); }
     Fl_Color fgcolor(void) const;
     Fl_Color bgcolor(void) const;
     int fgcolor_index(void) const;
