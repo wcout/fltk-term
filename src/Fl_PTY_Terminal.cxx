@@ -415,6 +415,7 @@ int Fl_PTY_Terminal::handle(int event) {
        // Fl_Terminal can't handle character combining via 'Combining Accute Accent' (0xCC81)
        if (len && (!(len == 3 && (uchar)text[1] == 0xCC && (uchar)text[2] == 0x81))) {
          write_pty(text, len);
+        redraw_rate(1./10);
        }
        return 1;
     }
@@ -468,18 +469,22 @@ int Fl_PTY_Terminal::handle(int event) {
     // Arrow keys for command history (up/down) and Cursor navigation
     if (key == FL_Up) {
       write_pty((DECCKM() ? "\033OA" : "\033[A"), 3); // ANSI Escape-Code for Arror up
+      redraw_rate(1./30);
       return 1;
     }
     if (key == FL_Down) {
       write_pty((DECCKM() ? "\033OB" : "\033[B"), 3); // ANSI Escape-Code for Arrow down
+      redraw_rate(1./30);
       return 1;
     }
     if (key == FL_Right) {
       write_pty((DECCKM() ? "\033OC" :"\033[C"), 3); // ANSI Escape-Code for Arrow right
+      redraw_rate(1./30);
       return 1;
     }
     if (key == FL_Left) {
       write_pty((DECCKM() ? "\033OD" : "\033[D"), 3); // ANSI Escape-Code for Arrow left
+      redraw_rate(1./30);
       return 1;
     }
     if (key == FL_Delete) {
@@ -571,6 +576,7 @@ int Fl_PTY_Terminal::handle(int event) {
     int len = Fl::event_length();
     if (len > 0) {
       write_pty(text, len);
+      redraw_rate(1./10);
       return 1;
     }
   }
@@ -606,30 +612,44 @@ void Fl_PTY_Terminal::snap_to_grid_cb(void *d) {
 
 void Fl_PTY_Terminal::toggle_default_colors() {
   // NOTE: toggling colors will update the display immediately
-  static bool def = true;
-  static Fl_Color def_colrs[32] = { (Fl_Color)-1 };
-  static Fl_Color gtk_colrs[32] = {
-    // fg normal
-    0x17142100, 0xc01c2800, 0x26a26900, 0xa2734c00, 0x12488b00, 0xa347ba00, 0x2aa1b300, 0xd0cfcc00,
-    // fg bright
-    0x5e5c6400, 0xf6615100, 0x33da7a00, 0xe9ad0c00, 0x2a7bde00, 0xc061cb00, 0x33c7de00, 0xffffff00,
-    // bg normal
-    0x17142100, 0xc01c2800, 0x26a26900, 0xa2734c00, 0x12488b00, 0xa347ba00, 0x2aa1b300, 0xd0cfcc00,
-    // bg bright
-    0x5e5c6400, 0xf6615100, 0x33da7a00, 0xe9ad0c00, 0x2a7bde00, 0xc061cb00, 0x33c7de00, 0xffffff00,
-  };
-
-  if (def_colrs[0] == (Fl_Color)-1) {
-    for (int i = 0; i < 16; i++) {
-      def_colrs[i] = xterm_fg_color(i);
-      def_colrs[i + 16] = xterm_bg_color(i);
+  static bool saved_def = false;
+  static std::vector<std::vector<Fl_Color>> palettes = {
+    { // GTK v1
+      // fg normal
+      0x17142100, 0xc01c2800, 0x26a26900, 0xa2734c00, 0x12488b00, 0xa347ba00, 0x2aa1b300, 0xd0cfcc00,
+      // fg bright
+      0x5e5c6400, 0xf6615100, 0x33da7a00, 0xe9ad0c00, 0x2a7bde00, 0xc061cb00, 0x33c7de00, 0xffffff00,
+      // bg normal
+      0x17142100, 0xc01c2800, 0x26a26900, 0xa2734c00, 0x12488b00, 0xa347ba00, 0x2aa1b300, 0xd0cfcc00,
+      // bg bright
+      0x5e5c6400, 0xf6615100, 0x33da7a00, 0xe9ad0c00, 0x2a7bde00, 0xc061cb00, 0x33c7de00, 0xffffff00,
+    },
+    { // GTK v2
+      // fg normal
+      0x2e343600, 0xcc000000, 0x4e9a0600, 0xc4a00000, 0x3465a400, 0x75507b00, 0x06989a00, 0xd3d7cf00,
+      // fg bright
+      0x55575300, 0xdf292900, 0x8ae23400, 0xfce94f00, 0x729fcf00, 0xad7fa800, 0x34e2e200, 0xeeeeec00,
+      // bg normal
+      0x2e343600, 0xcc000000, 0x4e9a0600, 0xc4a00000, 0x3465a400, 0x75507b00, 0x06989a00, 0xd3d7cf00,
+      // bg bright
+      0x55575300, 0xdf292900, 0x8ae23400, 0xfce94f00, 0x729fcf00, 0xad7fa800, 0x34e2e200, 0xeeeeec00,
     }
+  };
+  if (!saved_def) {
+    std::vector<Fl_Color> def_colrs;
+    for (int i = 0; i < 16; i++)
+      def_colrs.push_back(xterm_fg_color(i));
+    for (int i = 0; i < 16; i++)
+      def_colrs.push_back(xterm_bg_color(i));
+    palettes.insert(palettes.begin(), def_colrs);
+    saved_def = true;
   }
-  def = !def;
-  Fl_Color *c = def ? def_colrs : gtk_colrs;
+  static size_t curr_index = 0;
+  curr_index++;
+  if (curr_index >= palettes.size()) curr_index = 0;
   for (int i = 0; i < 16; i++) {
-    xterm_fg_color(i, c[i]);
-    xterm_bg_color(i, c[i + 16]);
+    xterm_fg_color(i, palettes[curr_index][i]);
+    xterm_bg_color(i, palettes[curr_index][i + 16]);
   }
   redraw();
 }
