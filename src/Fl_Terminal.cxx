@@ -668,22 +668,17 @@ int Fl_Terminal::Utf8Char::bgcolor_index(void) const {
   return bgcolor_;
 }
 
-// Return the width of this character in floating point pixels
-//
-//    WARNING: Uses current font, so assumes fl_font(face,size)
-//             has already been set to current font!
-//
-double Fl_Terminal::Utf8Char::pwidth(void) const {
-  return fl_width(text_, len_);
-}
-
 // Return the width of this character in integer pixels
 //
 //    WARNING: Uses current font, so assumes fl_font(face,size)
 //             has already been set to current font!
 //
-int Fl_Terminal::Utf8Char::pwidth_int(void) const {
-  return int(fl_width(text_, len_) + 0.5);
+int Fl_Terminal::Utf8Char::pwidth(int cell_width) const {
+  int W = int(fl_width(text_, len_) + 0.5);
+  W += (cell_width - 1);   // adjust width to
+  W /= cell_width;         // multiple of
+  W *= cell_width;         // cell width
+  return W;
 }
 
 // Return color \p col, possibly influenced by BOLD or DIM attributes \p attr.
@@ -1915,13 +1910,13 @@ int Fl_Terminal::x_to_glob_col(int X, int grow, int &gcol, bool &gcr) const {
   int cx = scrn_.x();                               // leftmost char x position
   const Utf8Char *u8c = utf8_char_at_glob(grow, 0);
   for (gcol=0; gcol<ring_cols(); gcol++,u8c++) {    // walk the cols looking for X
-    u8c->fl_font_set(*current_style_);              // pwidth_int() needs fl_font set
-    int cx2 = cx + u8c->pwidth_int();               // char x2 (right edge of char)
+    u8c->fl_font_set(*current_style_);              // pwidth() needs fl_font set
+    int cx2 = cx + u8c->pwidth(current_style_->charwidth()); // char x2 (right edge of char)
     if (X >= cx && X < cx2) {
       gcr = (X > ((cx+cx2)/2));                     // X is in right half of character
       return 1;                                     // found? return with gcol and gcr set
     }
-    cx += u8c->pwidth_int();                        // move cx to start x of next char
+    cx += u8c->pwidth(current_style_->charwidth()); // move cx to start x of next char
   }
   gcol = ring_cols()-1;                             // don't leave larger than #cols
   return 0;                                         // not found
@@ -4200,10 +4195,10 @@ const std::vector<Fl_Color> &Fl_Terminal::draw_row_bg(int grow, int X, int Y) co
   for (int gcol=start_col; gcol<end_col; gcol++,u8c++) {  // walk columns
     // Attribute changed since last char?
     if (gcol==0 || u8c->attrib() != lastattr) {
-      u8c->fl_font_set(*current_style_);                  // pwidth_int() needs fl_font set
+      u8c->fl_font_set(*current_style_);                  // pwidth() needs fl_font set
       lastattr = u8c->attrib();
     }
-    pwidth = u8c->pwidth_int();
+    pwidth = u8c->pwidth(current_style_->charwidth());
     bool inverse = (u8c->attrib() & Fl_Terminal::INVERSE);   // Inverse mode?
     if (select_.dynamic_color()) {                           // use dynamic selection colors for each character?
       if (is_inside_selection(grow, gcol)) {                 // text in mouse select?
@@ -4271,10 +4266,10 @@ void Fl_Terminal::draw_row(int grow, int Y) const {
     is_selection = is_inside_selection(grow, gcol);
     // Attribute changed since last char?
     if (u8c->attrib() != lastattr) {
-      u8c->fl_font_set(*current_style_);                  // pwidth_int() needs fl_font set
+      u8c->fl_font_set(*current_style_);                  // pwidth() needs fl_font set
       lastattr = u8c->attrib();
     }
-    int pwidth = u8c->pwidth_int();
+    int pwidth = u8c->pwidth(current_style_->charwidth());
     // DRAW CURSOR according to cursor type
     Fl_Color cbg(cursorbgcolor());
     if (is_cursor) {

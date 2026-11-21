@@ -606,8 +606,7 @@ protected:
     int bgcolor_index(void) const;
     // Return the length of this character in bytes (UTF-8 can be multibyte..)
     int length(void) const { return int(len_); }
-    double pwidth(void) const;
-    int pwidth_int(void) const;
+    int pwidth(int cell_width) const;
     // Clear the character to a 'space', charflags must be keept now!
     void clear(const CharStyle& style) { text_utf8(" ", 1, style); /*charflags_ = 0;*/ attrib_ = 0; }
     bool is_char(char c) const { return *text_ == c; }
