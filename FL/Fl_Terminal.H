@@ -357,7 +357,7 @@ public:
     UNDERLINE   = 0x08,   ///< underlined text
     ULINE_COLR  = 0x10,   ///< use color for underline (index to table is in charflags)
     INVERSE     = 0x20,   ///< inverse text; fg/bg color are swapped
-    _RESERVED_2 = 0x40,   ///< <EM>(reserved for internal future use)</EM>
+    ULINE_STYLE = 0x40,   ///< underline has style
     STRIKEOUT   = 0x80    ///< strikeout text
   };
 
@@ -369,11 +369,11 @@ public:
     FG_XTERM   = 0x01,    ///< this char's fg color is an XTERM color; can be affected by Dim+Bold
     BG_XTERM   = 0x02,    ///< this char's bg color is an XTERM color; can be affected by Dim+Bold
     EOL        = 0x04,    ///< TODO: char at EOL, used for line re-wrap during screen resizing
-    RESV_A     = 0x08,    // |
+    RESV_A     = 0x08,    // ┐
     RESV_B     = 0x10,    //  >  used for underline color index [0..7]
-    RESV_C     = 0x20,    // |
-    RESV_D     = 0x40,
-    RESV_E     = 0x80,
+    RESV_C     = 0x20,    // ┘
+    RESV_D     = 0x40,    // ┐_  used for underline style [0..3]
+    RESV_E     = 0x80,    // ┘   0=double, 1=curly, 2=dotted, 3=dashed
     COLORMASK  = (FG_XTERM | BG_XTERM)
   };
 
@@ -515,7 +515,12 @@ protected:
     void sgr_italic(bool val)    { attrib_ = (uchar)onoff(val, Fl_Terminal::ITALIC);    } // e.g. ESC[3m
     void sgr_underline(bool val) { attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE); } // e.g. ESC[4m
     void sgr_uline_colr(bool val){ attrib_ = (uchar)onoff(val, Fl_Terminal::ULINE_COLR);} // e.g. ESC[58:2::R:G:Bm
-    void sgr_dbl_under(bool val) { attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE); } // e.g. ESC[21m (TODO!)
+    void sgr_uline_style(bool val){ attrib_ = (uchar)onoff(val, Fl_Terminal::ULINE_STYLE);} // e.g. ESC[4:2m
+    void sgr_dbl_under(bool val) {                                                        // e.g. ESC[21m
+      attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE);   // set normal underline
+      sgr_uline_style(1);                                    // + style flags
+      clr_charflag(3 << 6);                                  // with style 0 = double under
+    }
     void sgr_blink(bool val)     { (void)val; /* NOT IMPLEMENTED */                     } // e.g. ESC[5m
     void sgr_inverse(bool val)   { attrib_ = (uchar)onoff(val, Fl_Terminal::INVERSE);   } // e.g. ESC[7m
     void sgr_strike(bool val)    { attrib_ = (uchar)onoff(val, Fl_Terminal::STRIKEOUT); } // e.g. ESC[9m
@@ -600,6 +605,7 @@ protected:
     uchar attrib(void) const { return attrib_; }
     uchar charflags(void) const { return charflags_; }
     int uline_colr_index(void) const { return ((charflags_>>3) & 7); }
+    int uline_style(void) const { return ((charflags_>>6) & 3); }
     Fl_Color fgcolor(void) const;
     Fl_Color bgcolor(void) const;
     int fgcolor_index(void) const;

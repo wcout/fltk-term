@@ -30,6 +30,7 @@
 #include <assert.h>
 #include <string>
 #include <algorithm>    // std::copy
+#include <cmath>
 
 #include <FL/Fl.H>
 #include <FL/Fl_Terminal.H>
@@ -2966,11 +2967,21 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         case 1: current_style_->sgr_bold(1);     break; // ESC[1m - bold
         case 2: current_style_->sgr_dim(1);      break; // ESC[2m - dim
         case 3: current_style_->sgr_italic(1);   break; // ESC[3m - italic
-        case 4:                                         // ESC[4#m - underline
+        case 4: {                                       // ESC[4#m - underline
           // with subparameter ESC[4:Pm  (P='0'..'5'), just use it for turning on/off
-          current_style_->sgr_underline(tot > 1 ? esc.val(1) != 0 : 1);
+          int style = esc.val(1); // 0=not, 1=standard, 2=double, 3=curly, 4=dotted, 5=dashed
+          current_style_->sgr_underline(tot > 1 ? style != 0 : 1);
+          if (style == 0)
+            current_style_->sgr_uline_style(0);
+          else if (style >= 2 && style <= 5) {
+            style -= 2;
+            current_style_->sgr_uline_style(1);         // flag "style info present"
+            current_style_->clr_charflag(3 << 6);       // store style in charflags
+            current_style_->set_charflag(style << 6);
+          }
           i += tot;                                     // skip subparameter
           break;
+        }
         case 5: current_style_->sgr_blink(1);    break; // ESC[5m - blink
         case 6: goto not_implemented;                   // ESC[6m - (unused)
         case 7: current_style_->sgr_inverse(1);  break; // ESC[7m - inverse
@@ -2983,7 +2994,9 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         case 22: current_style_->sgr_dim(0);             // ESC[22m - disable bold/dim
                  current_style_->sgr_bold(0);     break; //
         case 23: current_style_->sgr_italic(0);   break; // ESC[23m - disable italic
-        case 24: current_style_->sgr_underline(0);break; // ESC[24m - disable underline
+        case 24: current_style_->sgr_underline(0);       // ESC[24m - disable underline
+                 current_style_->sgr_uline_style(0);
+                 break;
         case 25: current_style_->sgr_blink(0);    break; // ESC[25m - disable blink
         case 26: goto not_implemented;                   // ESC[26m - (unused)
         case 27: current_style_->sgr_inverse(0);  break; // ESC[27m - disable inverse
@@ -4228,6 +4241,41 @@ const std::vector<Fl_Color> &Fl_Terminal::draw_row_bg(int grow, int X, int Y) co
   return bg;
 }
 
+// draw a wavy line between two points
+static void curly_line(double x1, double y1, double x2, double y2,
+                       double amplitude = 20.0, double cycles = 4.0,
+                       int steps = 200) {
+  double dx = x2 - x1;
+  double dy = y2 - y1;
+  double dist = std::hypot(dx, dy);
+  if (dist == 0.0) return;
+
+  // Unit normal vector (perpendicular to the line between the two points)
+  double nx = -dy / dist;
+  double ny =  dx / dist;
+
+  fl_begin_line();
+  for (int i = 0; i <= steps; i++) {
+    double t = static_cast<double>(i) / steps; // Progress from 0.0 to 1.0
+    double angle = t * cycles * 2.0 * M_PI;
+    double offset = std::cos(angle) * amplitude;
+
+    // Base point along the straight line + perpendicular cosine displacement
+    double px = x1 + t * dx + nx * offset;
+    double py = y1 + t * dy + ny * offset;
+
+    fl_vertex(px, py);
+  }
+  fl_end_line();
+}
+
+// draw curly line dimensioned for current font
+static void draw_curly_line(int x, double y, int x1) {
+  int w = x1 - x + 1;
+  int h = fl_height();
+  curly_line(x, y, x1, y, (double)h / 16, 2, w);
+}
+
 /**
   Draw the specified global row, which is the row in ring_chars[].
   The global row includes history + display buffers.
@@ -4328,11 +4376,24 @@ void Fl_Terminal::draw_row(int grow, int Y) const {
     if (!u8c->is_char(' ')) fl_draw(u8c->text_utf8(), u8c->length(), X, baseline);
     // 4) Strike or underline?
     if (u8c->attrib() & Fl_Terminal::STRIKEOUT) fl_line(X, strikeout_y, X+pwidth, strikeout_y);
-    if (u8c->attrib() & Fl_Terminal::UNDERLINE) {
+    if (u8c->attrib() & Fl_Terminal::UNDERLINE) {     // Handle underline:
       if (u8c->attrib() & Fl_Terminal::ULINE_COLR) {  // use underline color?
         fl_color(current_style_->underline_color[u8c->uline_colr_index()]);
       }
-      fl_line(X, underline_y, X+pwidth, underline_y);
+      int style = 0;
+      int dy = 0;
+      if (u8c->attrib() & Fl_Terminal::ULINE_STYLE) { // styled underline?
+        style = u8c->uline_style(); // 0=double, 1=curly, 2=dotted, 3=dashed
+        switch(style) {
+          case 0: fl_line(X, underline_y - 1, X + pwidth, underline_y - 1); dy++; break;
+          case 1: draw_curly_line(X, underline_y + 1, X + pwidth); break;
+          case 2: fl_line_style(FL_DOT); break;
+          case 3: fl_line_style(FL_DASH); break;
+        }
+      }
+      if (style != 1)
+        fl_line(X, underline_y + dy, X + pwidth, underline_y + dy);
+      fl_line_style(0);
     }
     // Move to next char pixel position
     X += pwidth;
