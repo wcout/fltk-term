@@ -513,7 +513,11 @@ protected:
     void sgr_bold(bool val)      { attrib_ = (uchar)onoff(val, Fl_Terminal::BOLD);      } // e.g. ESC[1m
     void sgr_dim(bool val)       { attrib_ = (uchar)onoff(val, Fl_Terminal::DIM);       } // e.g. ESC[2m
     void sgr_italic(bool val)    { attrib_ = (uchar)onoff(val, Fl_Terminal::ITALIC);    } // e.g. ESC[3m
-    void sgr_underline(bool val) { attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE); } // e.g. ESC[4m
+    void sgr_underline(bool val) {                                                        // e.g. ESC[4m
+      attrib_ = (uchar)onoff(val, Fl_Terminal::UNDERLINE);
+      sgr_uline_style(0);                                    // no style flags
+      clr_charflag(3 << 6);                                  // with style 0 = double under
+    }
     void sgr_uline_colr(bool val){ attrib_ = (uchar)onoff(val, Fl_Terminal::ULINE_COLR);} // e.g. ESC[58:2::R:G:Bm
     void sgr_uline_style(bool val){ attrib_ = (uchar)onoff(val, Fl_Terminal::ULINE_STYLE);} // e.g. ESC[4:2m
     void sgr_dbl_under(bool val) {                                                        // e.g. ESC[21m

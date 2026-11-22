@@ -2969,7 +2969,7 @@ void Fl_Terminal::handle_SGR(void) {     // ESC[...m?
         case 3: current_style_->sgr_italic(1);   break; // ESC[3m - italic
         case 4: {                                       // ESC[4#m - underline
           // with subparameter ESC[4:Pm  (P='0'..'5'), just use it for turning on/off
-          int style = esc.val(1); // 0=not, 1=standard, 2=double, 3=curly, 4=dotted, 5=dashed
+          int style = tot == 1 ? 0 : esc.val(1); // 0=not, 1=standard, 2=double, 3=curly, 4=dotted, 5=dashed
           current_style_->sgr_underline(tot > 1 ? style != 0 : 1);
           if (style == 0)
             current_style_->sgr_uline_style(0);
@@ -3587,6 +3587,10 @@ const Fl_Terminal::Utf8Char* Fl_Terminal::utf8_char_at_glob(int grow, int gcol) 
 */
 void Fl_Terminal::plot_char(const char *text, int len, int drow, int dcol) {
   Utf8Char *u8c = u8c_disp_row(drow) + dcol;
+  if (text && len == 0) { // allow special case: zero width char to compensate chars with 2-cell width
+    u8c->text_utf8("", 0, *current_style_);
+    return;
+  }
   if (!text || len<1) {
 fail:
     handle_unknown_char(drow, dcol);
@@ -3673,6 +3677,11 @@ void Fl_Terminal::print_char(const char *text, int len/*=-1*/) {
     if (!validate_cursor(do_scroll)) return;
     insert_mode_ ? insert_char(text, len, 1) : plot_char(text, len, cursor_row(), cursor_col());
     cursor_right(1, do_scroll);
+    // special case: chars with 2-cell width need compensation with a zero width cell
+    if (last_char_.pwidth(current_style_->charwidth()) > current_style_->charwidth()) {
+       insert_mode_ ? insert_char("", 0, 1) : plot_char("", 0, cursor_row(), cursor_col());
+       cursor_right(1, do_scroll);
+    }
   }
 }
 
