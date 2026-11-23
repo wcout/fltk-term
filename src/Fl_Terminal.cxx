@@ -2632,11 +2632,10 @@ void Fl_Terminal::cursor_down(int count,      ///< Number of lines to move curso
                              ) {
   //DEBUG ::printf("cursor_down(%d) scroll=%d\n", count, do_scroll);
   count = clamp(count, 1, ring_rows());        // sanity
-  int bottom = disp_rows();
-  if (ring_.scroll_bottom()) bottom -= (disp_rows() - ring_.scroll_bottom());
+  int bottom = ring_.scroll_bottom() ? ring_.scroll_bottom() : disp_rows(); // scroll region?
   while (count-- > 0) {
     if (cursor_.down() >= bottom) {            // hit screen bottom?
-      cursor_.row(disp_rows() - 1);            // clamp
+      cursor_.row(bottom - 1);                 // clamp
       if (!do_scroll) break;                   // don't scroll? done
       scroll(1);                               // scroll up 1 row to make room for new line
     }
