@@ -2742,6 +2742,16 @@ void Fl_Terminal::restore_cursor(void) {
     { cursor_.row(row); cursor_.col(col); }
 }
 
+/// Save current attributes. Used by ESC [ 7
+void Fl_Terminal::save_attr(void) {
+  saved_char_style_[1] = *current_style_;
+}
+
+/// Restore attributes. Used by ESC [ 8
+void Fl_Terminal::restore_attr(void) {
+  *current_style_ = saved_char_style_[1];
+}
+
 void Fl_Terminal::on_cursor_blink(bool reset/*=false*/) {
   static int count = 0;
   if (reset) {
@@ -3156,23 +3166,20 @@ bool Fl_Terminal::osc_command(const char *cmd) {
 */
 void Fl_Terminal::toggle_alternate_buffer(bool on) {
   if (alternate_buffer_ == on) return; // safety check
-  static RingBuffer saved_ring;
-  static CharStyle saved_char_style;
-  static Cursor saved_cursor;
   alternate_buffer_ = on;
   if (alternate_buffer_) {
     // Switch to alternate buffer
     //DEBUG fprintf(stderr, "Use alternate buffer\n");
-    saved_ring = ring_;
-    saved_char_style = *current_style_;
-    saved_cursor = cursor_;
+    saved_ring_ = ring_;
+    saved_char_style_[0] = *current_style_;
+    saved_cursor_ = cursor_;
     history_lines(0);
   } else {
     // Return from alternate buffer
     //DEBUG fprintf(stderr, "Exit alternate buffer\n");
-    ring_ = saved_ring;
-    *current_style_ = saved_char_style;
-    cursor_ = saved_cursor;
+    ring_ = saved_ring_;
+    *current_style_ = saved_char_style_[0];
+    cursor_ = saved_cursor_;
     resize(x(), y(), w(), h());
     // handle background color changed while in alternate buffer
     if (color() != current_style_->ctrstcolor()) {
@@ -3477,8 +3484,12 @@ cup:
       case 'E': cursor_crlf();             break;// <ESC>E - do a crlf
       case 'H': set_tabstop();             break;// <ESC>H - set a tabstop
       case 'M': cursor_up(1, true);        break;// <ESC>M - (RI) Reverse Index (up w/scroll)
-      case 's': save_cursor();             break;// <ESC>7 - save cur pos (xterm+gnome)
-      case 'u': restore_cursor();          break;// <ESC>8 - restore cur pos (xterm+gnome)
+      case 's': save_attr();                     // <ESC>7 - save attr + cur pos (xterm+gnome)
+                save_cursor();
+                break;
+      case 'u': restore_attr();                  // <ESC>8 - restore attr + cur pos (xterm+gnome)
+                restore_cursor();
+                break;
       case '(': line_graphics_ = escseq.buf()[2] == '0'; break;
       case ']': if (osc_command(&escseq.buf().c_str()[2])) break;
       // ignore artefacts from ESC] parsing with ST end marker (ESC\)

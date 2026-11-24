@@ -919,6 +919,8 @@ private:
   bool           redraw_modified_;  // display modified; used by redraw_timer_cb() to rate limit redraws
   bool           redraw_timer_;     // if true, redraw timer is running
   PartialUtf8Buf pub_;              // handles Partial Utf8 Buffer (pub)
+
+  // various flags/state variables
   Utf8Char       last_char_;        // last plotted character (needed for repeat \e[##b)
   bool           line_graphics_;    // produce box drawing characters with j,k,l,m,n,q,x
   bool           alternate_buffer_; // flags use of alternate buffer with ESC[?1024h/l
@@ -933,6 +935,9 @@ private:
   bool           bracketed_paste_;  // flags "bracketed paste mode" (default: false)
   bool           disable_color_bleeding_; // flags use default (instead of current) color for scrolled line (default: false)
   Fl_Cursor      app_cursor_;       // current application cursor
+  RingBuffer     saved_ring_;       // saved states in alternate buffer mode
+  CharStyle      saved_char_style_[2];
+  Cursor         saved_cursor_;
 protected:
   bool           alternate_buffer() const  { return alternate_buffer_; }
   bool           bracketed_paste() const  { return bracketed_paste_; }
@@ -1075,6 +1080,8 @@ protected:
   void cursor_tab_left(int count=1);
   void save_cursor(void);
   void restore_cursor(void);
+  void save_attr(void);
+  void restore_attr(void);
   void on_cursor_blink(bool reset = false);
   static void cursor_blink(void *d);
   void set_cursor_style(int style);
