@@ -888,9 +888,10 @@ void Fl_Terminal::RingBuffer::scroll(int rows, const CharStyle& style) {
   //DEBUG ::printf("   ring::scroll(%d) top=%d bottom=%d\n", rows, scroll_top_, scroll_bottom_);
   int s = scroll_top_ ? scroll_top_ : 1;
   int e = scroll_bottom_ ? scroll_bottom_ : disp_rows();
-  if (s != 1 || e != disp_rows()) {
+  int dr = e - s + 1;
+  if (s != 1 && e != disp_rows()) {       // scroll in window only
     if (rows > 0) {
-      rows = clamp(rows, 1, e - s + 1);   // sanity
+      rows = clamp(rows, 1, dr);          // sanity
       //DEBUG ::printf("   scroll up %d, [%d/%d]\n", rows, s, e);
       for (int i = 0; i < rows; i++) {
         // scroll up, move lines from s + 1 till e up one line
@@ -902,7 +903,7 @@ void Fl_Terminal::RingBuffer::scroll(int rows, const CharStyle& style) {
       }
     }
     else if (rows < 0) {
-      rows = clamp(-rows, 1, e - s + 1);  // make rows positive + sane
+      rows = clamp(-rows, 1, dr);         // make rows positive + sane
       //DEBUG ::printf("   scroll down %d, [%d/%d]\n", rows, s, e);
       for (int i = 0; i < rows; i++) {
         // scroll down, move lines from s till e - 1 down one line
@@ -938,14 +939,24 @@ void Fl_Terminal::RingBuffer::scroll(int rows, const CharStyle& style) {
     //                                  \______/
     //                                   Simple
     //                                   Offset
-    rows = clamp(rows, 1, disp_rows());                        // sanity
+    rows = clamp(rows, 1, dr);                                 // sanity
     // Scroll up into history
     offset_adjust(rows);
     // Adjust hist_use, clamp to max
     hist_use_ = clamp(hist_use_ + rows, 0, hist_rows_);
+
+    // copy lines previously below bottom scroll region down to compensate offset adjust
+    if (e < disp_rows()) {
+      int srow = e - rows;
+      int drow = e;
+      for (int row = drow; row >= srow; --row) {
+        move_disp_row(srow, drow);
+      }
+    }
+
     // Clear exposed lines at bottom
-    int srow = (disp_rows() - rows) % disp_rows();
-    int erow = disp_rows() - 1;
+    int srow = (dr - rows) % dr;
+    int erow = e - 1;
     clear_disp_rows(srow, erow, style);
   } else {
     // Scroll down w/out affecting history
@@ -966,8 +977,8 @@ void Fl_Terminal::RingBuffer::scroll(int rows, const CharStyle& style) {
     //                             \______/
     //                              Memory
     //                               move
-    rows = clamp(-rows, 1, disp_rows());                  // make rows positive + sane
-    for (int row=disp_rows()-1; row>=0; row--) {          // start at end of disp and work up
+    rows = clamp(-rows, 1, dr);                           // make rows positive + sane
+    for (int row = e - 1; row >= s - 1; row--) {          // start at end of disp and work up
       int src_row = (row - rows);                         // src is offset #rows being scrolled
       int dst_row = row;                                  // dst is display
       if (src_row >= 0) move_disp_row(src_row, dst_row);  // ok to move row? move row down
@@ -2298,7 +2309,7 @@ void Fl_Terminal::scroll(int rows) {
   if (disable_color_bleeding_)           // set at auto-wrap (that's what gnome terminal does)
     style.sgr_reset();                   // fill scrolled line with default color
   ring_.scroll(rows, style);
-  if (scroll_region_set()) return;       // application has taken over
+  if (scroll_region_full()) return;      // application has taken over
   if (rows > 0) update_scrollbar();      // scroll up? changes hist, so scrollbar affected
   else          clear_mouse_selection(); // scroll dn? clear mouse select; it might wrap ring
 }
@@ -2324,7 +2335,7 @@ void Fl_Terminal::insert_rows(int count) {
     for (int dcol=0; dcol<disp_cols(); dcol++)
       dst++->clear(*current_style_);
   }
-  if (scroll_region_set()) return;
+  if (scroll_region_full()) return;
   clear_mouse_selection();
 }
 
@@ -2349,7 +2360,7 @@ void Fl_Terminal::delete_rows(int count) {
     for (int dcol=0; dcol<disp_cols(); dcol++)
       dst++->clear(*current_style_);
   }
-  if (scroll_region_set()) return;
+  if (scroll_region_full()) return;
   clear_mouse_selection();
 }
 
