@@ -257,8 +257,7 @@ static void search_dialog(Fl_Widget *wgt, void *d) {
   const int W = 370;
   const int H = 100;
   Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
-  Fl_Double_Window *win = new Fl_Double_Window(term->x() + (term->w() - W ) / 2,
-                                               term->y() + (term->h() - H) / 2, W, H, "Search history");
+  Fl_Double_Window *win = new Fl_Double_Window(W, H, "Search history");
   Fl_Input *input = new Fl_Input(60, 10, 300, 26, "Search:");
   Fl_Button *up   = new Fl_Button(60, 60, 130, 30, "@8->");
   Fl_Button *down = new Fl_Button(230, 60, 130, 30, "@2->");
