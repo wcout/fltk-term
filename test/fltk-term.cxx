@@ -24,6 +24,10 @@
 #include <cstdlib>
 #include <FL/Fl.H>
 #include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Menu_Item.H>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Button.H>
+#include <FL/Fl_Box.H>
 
 #if HAS_PSEUDO_CONSOLE
 
@@ -249,6 +253,66 @@ private:
   Fl_Color slider_hoover_color_;
 };
 
+static void search_dialog(Fl_Widget *wgt, void *d) {
+  const int W = 370;
+  const int H = 100;
+  Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+  Fl_Double_Window *win = new Fl_Double_Window(term->x() + (term->w() - W ) / 2,
+                                               term->y() + (term->h() - H) / 2, W, H, "Search history");
+  Fl_Input *input = new Fl_Input(60, 10, 300, 26, "Search:");
+  Fl_Button *up   = new Fl_Button(60, 60, 130, 30, "@8->");
+  Fl_Button *down = new Fl_Button(230, 60, 130, 30, "@2->");
+  input->tooltip("Give a search string - Enter searches upwards");
+  //up->selection_color(FL_SELECTION_COLOR);
+  //down->selection_color(FL_SELECTION_COLOR);
+  Fl_Box *not_found = new Fl_Box(60, 35, 300, 26, "Not found!");
+  not_found->labelcolor(FL_RED);
+  not_found->hide();
+  not_found->align(FL_ALIGN_CENTER|FL_ALIGN_INSIDE);
+  input->take_focus();
+  input->when(FL_WHEN_ENTER_KEY|FL_WHEN_NOT_CHANGED);
+  static int row, col;
+  row = -1;
+  input->callback([](Fl_Widget *wgt, void *d) {
+    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+    Fl_Button *up = (Fl_Button *)(wgt->window()->child(1));
+    up->do_callback(up, term); // Enter acts like 'up' button
+  }, term);
+  up->callback([](Fl_Widget *wgt, void *d) {
+    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+    Fl_Input *input = (Fl_Input *)(wgt->window()->child(0));
+    if (!input->value()[0]) return;
+    if (!term->search(input->value(), row, col, false))
+      input->window()->child(3)->show();
+  }, term);
+  down->callback([](Fl_Widget *wgt, void *d) {
+    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+    Fl_Input *input = (Fl_Input *)(wgt->window()->child(0));
+    if (!input->value()[0]) return;
+    term->search(input->value(), row, col) ?
+      input->window()->child(3)->hide() : input->window()->child(3)->show();
+  }, term);
+  win->end();
+  win->set_modal();
+  win->show();
+  while (win->shown()) {
+    Fl::wait();
+  }
+  delete win;
+}
+
+static void context_menu(Fl_PTY_Terminal *term) {
+  //fprintf(stderr, "Right click on %d/%d\n", Fl::event_x(), Fl::event_y());
+  Fl_Menu_Item menu[10];
+  menu[0].text = 0;
+  menu->add(" Search history...", 0, (Fl_Callback *)search_dialog);
+  fl_cursor(FL_CURSOR_DEFAULT);
+  const Fl_Menu_Item *m = menu->popup(Fl::event_x(), Fl::event_y());
+  if (m) {
+    m->do_callback(0, term);
+  }
+}
+
 int main(int argc, char** argv) {
   char buf[FL_PATH_MAX];
   prefs.filename(buf, sizeof(buf) - 1);
@@ -272,6 +336,14 @@ int main(int argc, char** argv) {
     setenv("TERM", "xterm-256color", 1);
   }
 #endif
+
+  // Replaces standard 3D up/down boxes with flat equivalents globally
+  Fl::background(240, 240, 240);
+  Fl::set_color(FL_SELECTION_COLOR, 0x72, 0x9f, 0xcf);
+  Fl::set_boxtype(FL_UP_BOX, FL_BORDER_BOX);
+  Fl::set_boxtype(FL_DOWN_BOX, FL_BORDER_BOX);
+  Fl::set_boxtype(FL_THIN_UP_BOX, FL_BORDER_BOX);
+  Fl::set_boxtype(FL_THIN_DOWN_BOX, FL_BORDER_BOX);
 
   // we must create terminal on heap, otherwise FLTK's auto-deleter chokes...
   Fl_PTY_Terminal *terminal = new Fl_PTY_Terminal(0, 0, 100, 100); // create smaller than will be later
@@ -331,6 +403,11 @@ int main(int argc, char** argv) {
         return;
       case Fl_PTY_Terminal::FL_REASON_PTY_STOPPED: // bash quitted
         term->window()->hide();
+        return;
+      case Fl_PTY_Terminal::FL_REASON_RIGHT_MOUSE:
+        Fl::add_timeout(0., [](void *d) {
+          context_menu(static_cast<Fl_PTY_Terminal *>(d));
+        }, term);
         return;
       default:                                     // ANSI command not implemented
         if (log_ && buf && reason >= Fl_Terminal::FL_REASON_NOT_IMPL) {

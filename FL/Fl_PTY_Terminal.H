@@ -27,7 +27,8 @@ DECLARE_HANDLE(HPCON);
 class Fl_PTY_Terminal : public Fl_Terminal {
 public:
   enum Fl_PTY_Terminal_Callback_Reason {
-    FL_REASON_PTY_STOPPED = FL_REASON_TERM_USER
+    FL_REASON_PTY_STOPPED = FL_REASON_TERM_USER,
+    FL_REASON_RIGHT_MOUSE
   };
   Fl_PTY_Terminal(int x, int y, int w, int h, const char* l = nullptr);
   ~Fl_PTY_Terminal();
@@ -56,6 +57,7 @@ public:
   int handle(int event) override;
   void toggle_default_colors();
   void resize(int X, int Y, int W, int H) override;
+  bool search(const char *needle, int &row, int &col, bool down = true);
   void command(const char *cmd_);
   void logging(int level, FILE *logfile = stderr) {
     log_ = level;

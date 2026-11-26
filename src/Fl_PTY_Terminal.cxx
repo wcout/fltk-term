@@ -16,6 +16,7 @@
 #include <errno.h>
 #endif
 #include <FL/fl_draw.H> // fl_width()
+#include <FL/fl_ask.H>  // fl_beep()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 //  PTY terminal class with resize logic implementation
@@ -401,6 +402,11 @@ int Fl_PTY_Terminal::handle(int event) {
     write_pty(&bs, 1);
   };
 
+  if (event == FL_PUSH && Fl::event_button() == FL_RIGHT_MOUSE) {
+    do_callback(this, nullptr, (Fl_Callback_Reason)FL_REASON_RIGHT_MOUSE);
+    return 1;
+  }
+
   if (event == FL_KEYDOWN && pty_master_fd_ != -1) {
     int key = Fl::event_key();
     int state = Fl::event_state();
@@ -714,4 +720,100 @@ void Fl_PTY_Terminal::set_pty_size() {
 void Fl_PTY_Terminal::command(const char *cmd) {
   write_pty(cmd, strlen(cmd));
   write_pty("\n", 1);
+}
+
+bool Fl_PTY_Terminal::search(const char *needle, int &row, int &col, bool down) {
+  //fprintf(stderr, "Fl_PTY_Terminal::search %s (%s), row=%d, col=%d\n", (down ? "down" : "up"), needle, row, col);
+  if (!needle || !needle[0]) return false;
+  // get the complete terminal text
+  const char *temp = text();
+  std::string t(temp);
+  free((void *)temp);  // needs to be free'd
+  std::vector<std::string> vt;
+  // create a string vector with each text line
+  size_t pos;
+  while ((pos = t.find('\n')) != std::string::npos) {
+    vt.emplace_back(t.substr(0, pos));
+    t.erase(0, pos + 1);
+  }
+  if (t.size()) vt.push_back(t);
+
+  // determine current view window
+  int top = history_use() - scrollbar->value();    // first displayed line
+  int bot = top + display_rows();
+  if (bot > (int)vt.size()) bot = vt.size();       // first line AFTER display
+
+  bool found(false);
+  // determine start of search (if continued)
+  int srow = row;
+  int scol = col;
+  if (down) {
+    if (srow < 0) {
+      srow = top;
+      scol = 0;
+    }
+    else {
+      scol++;
+      if (scol >= (int)vt[0].size()) {
+        srow++;
+        scol = 0;
+        if (srow >= (int)vt.size()) return false;
+      }
+    }
+    //fprintf(stderr, "searching down starting at row %d, col %d\n", srow,  scol);
+    for (int r = srow; r < (int)vt.size(); r++) {
+      size_t f = vt[r].find(needle, scol);
+      scol = 0;
+      if (f != std::string::npos) {
+        row = r;
+        col = f;
+        found = true;
+        break;
+      }
+    }
+  } else { // search upwards
+    if (srow < 0) {
+      srow = bot - 1;
+      scol = 32768;
+    }
+    else {
+      scol--;
+      if (scol < 0) {
+        srow--;
+        scol = 32768;
+        if (srow < 0) return false;
+      }
+    }
+    //fprintf(stderr, "searching up starting at row %d, col %d\n", srow,  scol);
+    for (int r = srow; r >= 0; --r) {
+      size_t f = vt[r].rfind(needle, scol);
+      scol = 32768; // start from back
+      if (f != std::string::npos) {
+        row = r;
+        col = f;
+        found = true;
+        break;
+      }
+    }
+  }
+  if (found) {
+    // fprintf(stderr, "found '%s' at %d/%d\n", needle, row+1, col+1);
+    std::string s(vt[row].substr(), 0, col);
+    // the found index must be converted into a UTF8 column
+    int utf_col = fl_utf_nb_char((unsigned char *)s.c_str(), s.size());
+    // in order to highlight the correct word
+    select_word(row, utf_col);
+    // some magic to position the view/scrollbar
+    int v = (int)vt.size() - row - 1;
+    int vv = v-display_rows() / 2 + 1;
+    if (vv < 0) vv = 0;
+    if (history_use() && vv + 1 > history_use())
+      vv = history_use() - 1;
+    scrollbar->value(vv);
+    redraw();
+    return true;
+  }
+  // not found (again)
+  fl_beep();
+  return false;
 }
