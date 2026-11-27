@@ -19,6 +19,8 @@
 #include <FL/Fl_PTY_Terminal.H>
 #include <string>
 #include <sstream>
+#include <fstream>
+#include <ios>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -28,6 +30,7 @@
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Box.H>
+#include <FL/Fl_File_Chooser.H>
 
 #if HAS_PSEUDO_CONSOLE
 
@@ -257,6 +260,8 @@ class MyTerminal : public Fl_PTY_Terminal {
 public:
   MyTerminal(int x, int y, int w, int h, const char *l = 0) : Fl_PTY_Terminal(x, y, w, h, l) {}
   void search_dialog();
+  bool is_selection() const { return Fl_Terminal::is_selection(); }
+  bool alternate_buffer() const { return Fl_Terminal::alternate_buffer(); }
 };
 
 void MyTerminal::search_dialog() {
@@ -316,10 +321,32 @@ static void search_dialog_cb(Fl_Widget *wgt, void *d) {
   term->search_dialog();
 }
 
-static void context_menu(Fl_PTY_Terminal *term) {
+static void save_selection_cb(Fl_Widget *wgt, void *d) {
+  MyTerminal *term = static_cast<MyTerminal *>(d);
+  const char *name = fl_file_chooser("Save selection to:", "*.txt", "selection.txt", true);
+  if (name) {
+     const char *s = term->selection_text();
+     std::string sel(s);
+     free((void *)s);
+     if (sel.size() && !std::all_of(sel.begin(), sel.end(),
+       [](unsigned char c) {
+         return std::isspace(c);
+       })) {
+       std::ofstream ofs(name, std::ios::out);
+       ofs << sel;
+     } else {
+       fl_alert("Selection is empty!");
+     }
+  }
+}
+
+static void context_menu(MyTerminal *term) {
   Fl_Menu_Item menu[10];
   menu[0].text = 0;
   menu->add(" Search history...", 0, (Fl_Callback *)search_dialog_cb);
+  if (term->is_selection() && !term->alternate_buffer()) {
+    menu->add(" Save selection...", 0, (Fl_Callback *)save_selection_cb);
+  }
   fl_cursor(FL_CURSOR_DEFAULT);
   const Fl_Menu_Item *m = menu->popup(Fl::event_x(), Fl::event_y());
   if (m) {
@@ -420,7 +447,7 @@ int main(int argc, char** argv) {
         return;
       case Fl_PTY_Terminal::FL_REASON_RIGHT_MOUSE:
         Fl::add_timeout(0., [](void *d) {
-          context_menu(static_cast<Fl_PTY_Terminal *>(d));
+          context_menu(static_cast<MyTerminal *>(d));
         }, term);
         return;
       default:                                     // ANSI command not implemented
