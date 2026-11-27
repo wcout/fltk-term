@@ -803,13 +803,15 @@ bool Fl_PTY_Terminal::search(const char *needle, int &row, int &col, bool down) 
     int utf_col = fl_utf_nb_char((unsigned char *)s.c_str(), s.size());
     // in order to highlight the correct word
     select_word(row, utf_col);
-    // some magic to position the view/scrollbar
-    int v = (int)vt.size() - row - 1;
-    int vv = v - display_rows() / 2 + 1;
-    if (vv < 0) vv = 0;
-    if (history_use() && vv + 1 > history_use())
-      vv = history_use() - 1;
-    scrollbar->value(vv);
+    if (history_lines()) { // do not reposition with single screen (e.g. alternate buffer)
+      // some magic to position the view/scrollbar
+      int v = (int)vt.size() - row - 1;
+      int vv = v - display_rows() / 2 + 1;
+      if (vv < 0) vv = 0;
+      if (history_use() && vv + 1 > history_use())
+        vv = history_use() - 1;
+      scrollbar->value(vv);
+    }
     redraw();
     return true;
   }

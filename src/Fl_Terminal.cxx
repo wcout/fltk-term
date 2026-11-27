@@ -2272,10 +2272,13 @@ bool Fl_Terminal::selection_extend(int X,int Y) {
  */
 void Fl_Terminal::select_word(int grow, int gcol) {
   int i, c0, c1;
+  bool full = history_lines() && history_use() >= history_lines();
+  grow += full ? ring_.offset() : 0; // NOTE: clarify why?
   int r = grow, c = gcol;
   Utf8Char *row = u8c_ring_row(r);
   int n = ring_cols();
   if (c >= n) return;
+
   if (row[c].text_utf8()[0]==' ') {
     for (i=c; i>0; i--) if (row[i-1].text_utf8()[0]!=' ') break;
     c0 = i;
@@ -2287,7 +2290,8 @@ void Fl_Terminal::select_word(int grow, int gcol) {
     for (i=c; i<n-2; i++) if (row[i+1].text_utf8()[0]==' ') break;
     c1 = i;
   }
-  select_.select(r, c0, r, c1);
+  int R = full ? normalize(grow, ring_rows()) : r; // NOTE: clarify why?
+  select_.select(R, c0, R, c1);
 }
 
 /**

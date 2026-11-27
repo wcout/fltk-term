@@ -285,8 +285,8 @@ void MyTerminal::search_dialog() {
     ((Fl_Button *)wgt)->value(1);
     wgt->redraw();
     Fl::wait();
-    if (!term->search(input->value(), row, col, direction))
-      input->window()->child(3)->show();
+    term->search(input->value(), row, col, direction) ?
+      input->window()->child(3)->hide() : input->window()->child(3)->show();
     ((Fl_Button *)wgt)->value(0);
   };
 
