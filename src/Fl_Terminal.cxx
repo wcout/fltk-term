@@ -2278,7 +2278,6 @@ void Fl_Terminal::select_word(int grow, int gcol) {
   Utf8Char *row = u8c_ring_row(r);
   int n = ring_cols();
   if (c >= n) return;
-
   if (row[c].text_utf8()[0]==' ') {
     for (i=c; i>0; i--) if (row[i-1].text_utf8()[0]!=' ') break;
     c0 = i;
