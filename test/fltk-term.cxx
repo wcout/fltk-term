@@ -253,17 +253,22 @@ private:
   Fl_Color slider_hoover_color_;
 };
 
-static void search_dialog(Fl_Widget *wgt, void *d) {
-  const int W = 370;
-  const int H = 100;
-  Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+class MyTerminal : public Fl_PTY_Terminal {
+public:
+  MyTerminal(int x, int y, int w, int h, const char *l = 0) : Fl_PTY_Terminal(x, y, w, h, l) {}
+  void search_dialog();
+};
+
+void MyTerminal::search_dialog() {
+  static const int W = 370;
+  static const int H = 100;
   Fl_Double_Window *win = new Fl_Double_Window(W, H, "Search history");
   Fl_Input *input = new Fl_Input(60, 10, 300, 26, "Search:");
   Fl_Button *up   = new Fl_Button(60, 60, 130, 30, "@8->");
   Fl_Button *down = new Fl_Button(230, 60, 130, 30, "@2->");
   input->tooltip("Give a search string - Enter searches upwards");
-  //up->selection_color(FL_SELECTION_COLOR);
-  //down->selection_color(FL_SELECTION_COLOR);
+  up->selection_color(FL_SELECTION_COLOR);
+  down->selection_color(FL_SELECTION_COLOR);
   Fl_Box *not_found = new Fl_Box(60, 35, 300, 26, "Not found!");
   not_found->labelcolor(FL_RED);
   not_found->hide();
@@ -272,25 +277,30 @@ static void search_dialog(Fl_Widget *wgt, void *d) {
   input->when(FL_WHEN_ENTER_KEY|FL_WHEN_NOT_CHANGED);
   static int row, col;
   row = -1;
+
+  auto static do_search =[](Fl_Widget *wgt, void *d, bool direction) {
+    MyTerminal *term = static_cast<MyTerminal *>(d);
+    Fl_Input *input = (Fl_Input *)(wgt->window()->child(0));
+    if (!input->value()[0]) return;
+    ((Fl_Button *)wgt)->value(1);
+    wgt->redraw();
+    Fl::wait();
+    if (!term->search(input->value(), row, col, direction))
+      input->window()->child(3)->show();
+    ((Fl_Button *)wgt)->value(0);
+  };
+
   input->callback([](Fl_Widget *wgt, void *d) {
-    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
+    MyTerminal *term = static_cast<MyTerminal *>(d);
     Fl_Button *up = (Fl_Button *)(wgt->window()->child(1));
     up->do_callback(up, term); // Enter acts like 'up' button
-  }, term);
+  }, this);
   up->callback([](Fl_Widget *wgt, void *d) {
-    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
-    Fl_Input *input = (Fl_Input *)(wgt->window()->child(0));
-    if (!input->value()[0]) return;
-    if (!term->search(input->value(), row, col, false))
-      input->window()->child(3)->show();
-  }, term);
+    do_search(wgt, d, false);
+  }, this);
   down->callback([](Fl_Widget *wgt, void *d) {
-    Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
-    Fl_Input *input = (Fl_Input *)(wgt->window()->child(0));
-    if (!input->value()[0]) return;
-    term->search(input->value(), row, col) ?
-      input->window()->child(3)->hide() : input->window()->child(3)->show();
-  }, term);
+    do_search(wgt, d, true);
+  }, this);
   win->end();
   win->set_modal();
   win->show();
@@ -298,13 +308,18 @@ static void search_dialog(Fl_Widget *wgt, void *d) {
     Fl::wait();
   }
   delete win;
+  if (alternate_buffer()) clear_mouse_selection();
+}
+
+static void search_dialog_cb(Fl_Widget *wgt, void *d) {
+  MyTerminal *term = static_cast<MyTerminal *>(d);
+  term->search_dialog();
 }
 
 static void context_menu(Fl_PTY_Terminal *term) {
-  //fprintf(stderr, "Right click on %d/%d\n", Fl::event_x(), Fl::event_y());
   Fl_Menu_Item menu[10];
   menu[0].text = 0;
-  menu->add(" Search history...", 0, (Fl_Callback *)search_dialog);
+  menu->add(" Search history...", 0, (Fl_Callback *)search_dialog_cb);
   fl_cursor(FL_CURSOR_DEFAULT);
   const Fl_Menu_Item *m = menu->popup(Fl::event_x(), Fl::event_y());
   if (m) {
@@ -345,8 +360,8 @@ int main(int argc, char** argv) {
   Fl::set_boxtype(FL_THIN_DOWN_BOX, FL_BORDER_BOX);
 
   // we must create terminal on heap, otherwise FLTK's auto-deleter chokes...
-  Fl_PTY_Terminal *terminal = new Fl_PTY_Terminal(0, 0, 100, 100); // create smaller than will be later
-  Fl_PTY_Terminal &term = *terminal;
+  MyTerminal *terminal = new MyTerminal(0, 0, 100, 100); // create smaller than will be later
+  MyTerminal &term = *terminal;
   if (!term.inited()) {
     fprintf(stderr, "Failed to initialize PTY backend\n");
     return 1;

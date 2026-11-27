@@ -805,7 +805,7 @@ bool Fl_PTY_Terminal::search(const char *needle, int &row, int &col, bool down) 
     select_word(row, utf_col);
     // some magic to position the view/scrollbar
     int v = (int)vt.size() - row - 1;
-    int vv = v-display_rows() / 2 + 1;
+    int vv = v - display_rows() / 2 + 1;
     if (vv < 0) vv = 0;
     if (history_use() && vv + 1 > history_use())
       vv = history_use() - 1;
