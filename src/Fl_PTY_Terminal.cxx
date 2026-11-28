@@ -46,7 +46,7 @@ void Fl_PTY_Terminal::reset() {
 }
 
 Fl_PTY_Terminal::~Fl_PTY_Terminal() {
-  Fl::remove_timeout(snap_to_grid_cb, this);
+  Fl::remove_timeout(resize_cb, this);
 #ifdef _WIN32
 #if HAS_PSEUDO_CONSOLE
   if (_hPC) {
@@ -593,29 +593,6 @@ int Fl_PTY_Terminal::handle(int event) {
   return Fl_Terminal::handle(event);
 }
 
-// Is called after a resize and tries to change the
-// dimensions to full character sizes.
-void Fl_PTY_Terminal::snap_to_grid(void) {
-  int cols = w_to_col(scrn_.w());
-  int rows = h_to_row(scrn_.h());
-  resize_display_columns(cols);       // change columns to screen width
-  default_tabstops();                 // reset tabstops to default 8 char
-  int W, H;
-  char_to_pixel_dimension(cols, rows, W, H); // align to character boundaries if on PTY
-  set_pty_size();
-  if (W != w() || H != h()) {
-    Fl_Group::size(W, H);             // IMPORTANT: tell bash the new disp_rows(), disp_cols()!
-    do_callback(this, nullptr, (Fl_Callback_Reason)Fl_Terminal::FL_REASON_SIZE_CHANGE);
-  }
-}
-
-// trigger resize to character boundaries
-/*static*/
-void Fl_PTY_Terminal::snap_to_grid_cb(void *d) {
-  Fl_PTY_Terminal *term = (Fl_PTY_Terminal *)d;
-  term->snap_to_grid();
-}
-
 void Fl_PTY_Terminal::toggle_default_colors() {
   // NOTE: toggling colors will update the display immediately
   static bool saved_def = false;
@@ -662,15 +639,26 @@ void Fl_PTY_Terminal::toggle_default_colors() {
 
 // Catch GUI-Resize and pass it on to the Bash
 void Fl_PTY_Terminal::resize(int X, int Y, int W, int H) {
-  // First let the base class change the GUI-Widget size
-  bool need_snap = w() != W || h() != H;
   Fl_Terminal::resize(X, Y, W, H);
-  if (snap_ && need_snap && !window()->maximize_active()) { // 'snap to character grid' set?
-    Fl::remove_timeout(snap_to_grid_cb, this);
-    Fl::add_timeout(0.1, snap_to_grid_cb, this);
-  }
+  Fl::remove_timeout(resize_cb, this);
+  Fl::add_timeout(0.1, resize_cb, this);
+}
 
+void Fl_PTY_Terminal::resize_post_processing() {
+  int cols = w_to_col(scrn_.w());
+  resize_display_columns(cols);       // change columns to screen width
+  default_tabstops();                 // reset tabstops to default 8 char
   set_pty_size();
+  if (snap_ && !window()->maximize_active()) { // 'snap to character grid' set?
+    int W, H;
+    int rows = h_to_row(scrn_.h());
+    char_to_pixel_dimension(cols, rows, W, H); // align to character boundaries if on PTY
+    if (W != w() || H != h()) {
+      // First let the base class change the GUI-Widget size
+      Fl_Group::size(W, H);             // IMPORTANT: tell bash the new disp_rows(), disp_cols()!
+      do_callback(this, nullptr, (Fl_Callback_Reason)Fl_Terminal::FL_REASON_SIZE_CHANGE);
+    }
+  }
 }
 
 void Fl_PTY_Terminal::set_pty_size() {

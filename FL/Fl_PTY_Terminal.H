@@ -42,7 +42,8 @@ private:
 #endif
   int handle_dnd(int event);
   int handle_paste(const std::string &text);
-  void snap_to_grid(void);
+  static void resize_cb(void *d) { ((Fl_PTY_Terminal *)d)->resize_post_processing(); }
+  void resize_post_processing();
 protected:
   void write_pty(const char *buf_, size_t len);
   bool init();
@@ -69,7 +70,6 @@ public:
     Initially false, because application must be prepared for that.
   */
   void snap(bool v) { snap_ = v; }
-  static void snap_to_grid_cb(void *d);
 private:
   int    pty_master_fd_ = -1;
   bool   inited_        = false;
